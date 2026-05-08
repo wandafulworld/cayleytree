@@ -730,29 +730,30 @@ class HusimiCayley(IsotropicAbstractTree):
         for l in range(2,self.M+1):
             Hs.append(self._eff_hamiltonian_constructor(l,J))
             degeneracies.append((self.k -1)*(self.k + 1)*self.k**(l-2))
-        print(Hs)
         return Hs, degeneracies
 
 
 
 class LiebHusimi(IsotropicAbstractTree):
-    def __init__(self,M,k,force_graph_object_creation=False):
+    def __init__(self,M,k,J1=1,J2=1,force_graph_object_creation=False):
         self.M = M
         self.mc = math.floor(M/2) # Number of Cayley Shells
         self.ml = math.ceil(M/2) # Number of Lieb Shells
         self.k = k # Connectivity (Degree of each node = k + 1)
         logger.info('Initiating LiebHusimi Tree')
         self.N = int(((k + 1)/(k-1))*(k**self.mc + k**self.ml -2)) # Number of Nodes
+        self.J1 = J1
+        self.J2 = J2
 
         self.forced_graph = force_graph_object_creation
 
         if self.N < 4000 or force_graph_object_creation:
-            self.G = IsotropicAbstractTree._tree_creator(self.N,self.k,LiebHusimi._tree_edges) # networkx graph object
+            self.G = IsotropicAbstractTree._tree_creator(self.N,self.k,LiebHusimi._tree_edges,J1=J1,J2=J2) # networkx graph object
             self._A = nx.adjacency_matrix(self.G) # Sparse Matrix
 
 
     @staticmethod
-    def _tree_edges(n,r):
+    def _tree_edges(n,r,J1,J2):
         """
         Iteratively defines the tree structure
         :param n: Number of nodes
@@ -772,7 +773,7 @@ class LiebHusimi(IsotropicAbstractTree):
         for i in range(r+1):
             lieb_shell.append(next(nodes))
         for connection in itertools.combinations(lieb_shell, 2):
-            yield connection[0], connection[1]
+            yield connection[0], connection[1], {'weight': J1}
 
 
         # Iterative filling of shells
@@ -781,7 +782,7 @@ class LiebHusimi(IsotropicAbstractTree):
             try:
                 target = next(nodes)
                 cayley_shell.append(target)
-                yield source, target
+                yield source, target, {'weight': 1}
             except StopIteration:
                 break
 
@@ -793,11 +794,11 @@ class LiebHusimi(IsotropicAbstractTree):
                             target = next(nodes)
                             triangle.append(target)
                             lieb_shell.append(target)
-                            yield cayley_node,target
+                            yield cayley_node,target, {'weight': J2}
                         except StopIteration:
                             break
                     for connection in itertools.combinations(triangle, 2):
-                        yield connection[0], connection[1]
+                        yield connection[0], connection[1], {'weight': J1}
                 cayley_shell = []
 
     @property
@@ -824,33 +825,32 @@ class LiebHusimi(IsotropicAbstractTree):
 
 
 
-    def _eff_hamiltonian_constructor(self,l,J = None):
+    def _eff_hamiltonian_constructor(self,l):
         """
         Constructs the effective Hamiltonian of the Lieb-Cayley tree for a given shell number.
         Automatically adapts to M even or M odd cases. For M even, the matrix will have dimension M - l + 1.
         :param l: Number of the shell we're starting our construction from. For l = 0 we start from |0>
         :return: 2D-nparray of effective hamiltonian h and scalar of degeneracy d of the hamiltonian
         """
-        if not J and J != 0:
-            J = 1
-        a = [1*J,np.sqrt(self.k)]
+
+        a = [1,self.J2*np.sqrt(self.k)]
         offdiag = np.tile(a,reps=int(np.floor(self.M/2)))
 
-        b = [self.k-1,0]
+        b = [self.J1*(self.k-1),0]
         diag = np.tile(b,reps=int(np.ceil(self.M/2)))
 
         if l == 0:
-            diag[0] = self.k
+            diag[0] = self.k*self.J1
             h = [np.diag(diag[l:self.M]) + np.diag(offdiag[l:self.M-1],k=1) + np.diag(offdiag[l:self.M-1],k=-1)] #The M automatically cuts off the last element of the offdiagonal if M is odd
-            diag[0] = -1
+            diag[0] = -1*self.J1
             h.append(np.diag(diag[l:self.M]) + np.diag(offdiag[l:self.M-1],k=1) + np.diag(offdiag[l:self.M-1],k=-1))
         else:
-            diag[0] = -1
+            diag[0] = -1*self.J1
             h = np.diag(diag[0:self.M-l]) + np.diag(offdiag[0:self.M-1-l],k=1) + np.diag(offdiag[0:self.M-1-l],k=-1) #The M automatically cuts off the last element of the offdiagonal if M is odd
 
         return h
 
-    def _eff_hamiltonian_list(self,J = None):
+    def _eff_hamiltonian_list(self):
         """
         Returns a list of all effective hamiltonians and a second list with the degeneracies of the eigenvalues
         of these hamiltonians. The ordering of these to lists must be 1-to-1.
@@ -861,12 +861,12 @@ class LiebHusimi(IsotropicAbstractTree):
         Hs = []
         degeneracies = []
         # Symm States (there are two for lc = 0)
-        Hs.extend(self._eff_hamiltonian_constructor(0,J))
+        Hs.extend(self._eff_hamiltonian_constructor(0))
         degeneracies.append(1), degeneracies.append((self.k)) # Uncertain about the second one here
 
         # Anti-Symm States (runs from 1 to mc with lc = 2l)
         for lc in range(1,self.mc + self.M%2):
-            Hs.append(self._eff_hamiltonian_constructor(2*lc,J))
+            Hs.append(self._eff_hamiltonian_constructor(2*lc))
             degeneracies.append((self.k -1)*(self.k + 1)*self.k**(lc-1))
         return Hs, degeneracies
 
@@ -875,9 +875,8 @@ class LiebHusimi(IsotropicAbstractTree):
 
 
 if __name__ == "__main__":
-    HC = HusimiCayley(3,4,circle=True)
+    HC = LiebHusimi(5,2,J1=2,J2=1)
     fig, ax_list = plt.subplots(2,1,sharex=True)
-    fig.figsize = (15,15)
 
     eval, evec = HC.exact_diagonalization()
     ax_list[0].hist(eval,bins=201)
@@ -891,6 +890,5 @@ if __name__ == "__main__":
     ax_list[1].set_xlabel('E/t')
     #ax_list[1].semilogy()
     ax_list[1].set_title('Effective Hamiltonian Diagonalization Spectrum')
-
 
     plt.show()
