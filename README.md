@@ -10,6 +10,7 @@
   </a>
 
   <h3 align="center">cayleytree</h3>
+  <a align="center" href="https://doi.org/10.5281/zenodo.20086334"><img src="https://zenodo.org/badge/866628698.svg" alt="DOI"></a>
 
   <p align="center">
     A package to create and solve large Cayley trees!
