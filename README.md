@@ -52,7 +52,8 @@ Core functionalities:
 * Each tree has been built on a [networkx](https://networkx.org/) graph object, allowing to experiment on it with the full power of the graph theoretical tools implemented in networkx
 * Each tree comes with out-of-the-box adjacency spectrum solvers and plotting options.
 
-
+This package is underlying the analysis presented in "[Topological states and flat bands in exactly solvable decorated Cayley trees](https://arxiv.org/abs/2511.11261)". 
+The Figures presented in that paper are generated in the python notebook found in the corresponding folder of this project.  
 
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
